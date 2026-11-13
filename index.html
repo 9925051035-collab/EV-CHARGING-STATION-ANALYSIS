@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EV Charging Station Analytics | 3D Interactive Campus & Vehicle Simulation Platform</title>
+  
+  <!-- High-tech Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- D3.js v7 (Local with CDN fallback) -->
+  <script src="lib/d3.v7.min.js"></script>
+  <script>
+    if (!window.d3) {
+      document.write('<script src="https://d3js.org/d3.v7.min.js"><\/script>');
+    }
+  </script>
+
+  <!-- Three.js & OrbitControls (Local with CDN fallback) -->
+  <script src="lib/three.min.js"></script>
+  <script>
+    if (!window.THREE) {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+  <script src="lib/OrbitControls.js"></script>
+  <script>
+    if (!window.THREE || !window.THREE.OrbitControls) {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+    }
+  </script>
+</head>
+<body class="cyber-theme">
+
+  <!-- ═══════════════════════════════════════════
+       BACKGROUND AMBIENT LIGHTING & SUBTLE GRID
+  ════════════════════════════════════════════ -->
+  <div class="ambient-glow ambient-glow--top"></div>
+  <div class="ambient-glow ambient-glow--bottom"></div>
+  <div class="cyber-grid-bg"></div>
+
+  <!-- ═══════════════════════════════════════════
+       TOP NAVIGATION & TELEMETRY HUD
+  ════════════════════════════════════════════ -->
+  <header class="topnav">
+    <div class="topnav__left">
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Sidebar" title="Toggle Navigation Sidebar">
+        <span class="toggle-bar"></span>
+        <span class="toggle-bar"></span>
+        <span class="toggle-bar"></span>
+      </button>
+      <div class="topnav__brand">
+        <div class="brand-logo-hex">
+          <span class="brand-icon">⚡</span>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">EV INFRASTRUCTURE &bull; VEHICLE TELEMETRY PLATFORM</div>
+          <div class="brand-subtitle">3D Campus Twin &bull; 3D Vehicle Simulation Studio &bull; D3.js Visualizations &bull; CSE221</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Telemetry Ticker -->
+    <div class="topnav__ticker" id="topTicker">
+      <div class="ticker-item">
+        <span class="ticker-label">DATASTREAM</span>
+        <span class="ticker-value text-cyan" id="tickerRecords">72,856 RECORDS</span>
+      </div>
+      <div class="ticker-separator">/</div>
+      <div class="ticker-item">
+        <span class="ticker-label">VEHICLES</span>
+        <span class="ticker-value text-pink" id="tickerVehicles">2,337 VEHICLES</span>
+      </div>
+      <div class="ticker-separator">/</div>
+      <div class="ticker-item">
+        <span class="ticker-label">INFRASTRUCTURE</span>
+        <span class="ticker-value text-green">2,119 CHARGERS</span>
+      </div>
+      <div class="ticker-separator">/</div>
+      <div class="ticker-item">
+        <span class="ticker-label">TIME WINDOW</span>
+        <span class="ticker-value text-violet" id="tickerWindow">SEP 2021 &ndash; SEP 2022</span>
+      </div>
+    </div>
+
+    <div class="topnav__right">
+      <div class="topnav__status" id="datasetStatus">
+        <span class="status-dot status-dot--idle"></span>
+        <span id="statusText">Initializing Stream...</span>
+      </div>
+      <button class="btn-icon" id="fullscreenBtn" title="Toggle Fullscreen" aria-label="Fullscreen">
+        <span class="icon-expand">⛶</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════
+       MAIN WORKSPACE LAYOUT
+  ════════════════════════════════════════════ -->
+  <div class="layout" id="mainLayout">
+
+    <!-- ── COLLAPSIBLE TELEMETRY SIDEBAR ── -->
+    <aside class="sidebar" id="sidebar">
+      
+      <!-- VEHICLE ID SEARCH & SELECTION (PRIMARY UPGRADE) -->
+      <div class="sidebar__section sidebar__section--highlight">
+        <div class="sidebar__heading">
+          <span>🚗 VEHICLE ID FILTER & TELEMETRY</span>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="filterVehicleSearch">Search Vehicle ID</label>
+          <div class="search-input-wrap">
+            <input type="text" class="filter-select text-input" id="filterVehicleSearch" placeholder="Type Vehicle ID (e.g. 95, 31, 40)..." />
+            <span class="search-icon">🔍</span>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="filterVehicleSelect">Select Vehicle</label>
+          <div class="select-wrapper">
+            <select class="filter-select" id="filterVehicleSelect">
+              <option value="">All Vehicles</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Quick Switcher to high-frequency recurring vehicles -->
+        <div class="quick-vehicles-label">Frequent Vehicles:</div>
+        <div class="preset-pill-group quick-vehicles-pills">
+          <button class="preset-pill" data-vehicle="95">#95 (348 sess)</button>
+          <button class="preset-pill" data-vehicle="31">#31 (353 sess)</button>
+          <button class="preset-pill" data-vehicle="179">#179 (341 sess)</button>
+          <button class="preset-pill" data-vehicle="40">#40 (323 sess)</button>
+          <button class="preset-pill" data-vehicle="36">#36 (300 sess)</button>
+        </div>
+
+        <div class="filter-group" id="vehicleSessionGroup" style="display:none; margin-top: 10px;">
+          <label class="filter-label" for="filterVehicleSessionSelect">Vehicle Charging Session</label>
+          <div class="select-wrapper">
+            <select class="filter-select" id="filterVehicleSessionSelect">
+              <option value="0">Session 1</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn--reset-vehicle" id="resetVehicleBtn" style="display:none;">
+          <span>↺ Clear Vehicle Filter</span>
+        </button>
+      </div>
+
+      <!-- Preset Quick Filters -->
+      <div class="sidebar__section">
+        <div class="sidebar__heading">
+          <span>⚡ CAMPUS PRESETS</span>
+        </div>
+        <div class="preset-pill-group">
+          <button class="preset-pill active" data-preset="all">All Stations</button>
+          <button class="preset-pill" data-preset="fast-dc">⚡ Fast DC Hub</button>
+          <button class="preset-pill" data-preset="slow-ac">🔌 Slow AC Hub</button>
+          <button class="preset-pill" data-preset="hotels">🏨 Hospitality</button>
+          <button class="preset-pill" data-preset="public">🌆 Public Hubs</button>
+        </div>
+      </div>
+
+      <!-- Dataset Upload & Health -->
+      <div class="sidebar__section">
+        <div class="sidebar__heading">
+          <span>📂 DATA SOURCE</span>
+        </div>
+        <label class="btn btn--cyber btn--upload" for="csvUpload">
+          <span class="btn-icon-wrap">📁</span>
+          <span>Upload Custom CSV</span>
+          <input type="file" id="csvUpload" accept=".csv" style="display:none;" />
+        </label>
+        
+        <div class="data-quality glass-panel" id="dataQuality" style="display:none;">
+          <div class="dq-header">
+            <span class="dq-title">TELEMETRY INTEGRITY</span>
+            <span class="dq-badge">VERIFIED</span>
+          </div>
+          <div class="dq-row"><span>Records Streamed</span><strong id="dqTotal">—</strong></div>
+          <div class="dq-row"><span>Distinct Vehicles</span><strong id="dqVehicles">—</strong></div>
+          <div class="dq-row"><span>Valid Records</span><strong id="dqValid">—</strong></div>
+          <div class="dq-row"><span>Filtered (Zero/Neg Dur)</span><strong id="dqExcluded">—</strong></div>
+        </div>
+      </div>
+
+      <!-- Live Filters -->
+      <div class="sidebar__section">
+        <div class="sidebar__heading">
+          <span>⚙️ PARAMETER FILTERS</span>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="filterLocation">Location Type</label>
+          <div class="select-wrapper">
+            <select class="filter-select" id="filterLocation">
+              <option value="">All Locations</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="filterCompany">Network Operator</label>
+          <div class="select-wrapper">
+            <select class="filter-select" id="filterCompany">
+              <option value="">All Operators</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="filterType">Charging Standard</label>
+          <div class="select-wrapper">
+            <select class="filter-select" id="filterType">
+              <option value="">All Types (Slow AC + Fast DC)</option>
+              <option value="Slow AC">Slow AC Hub (Level 2)</option>
+              <option value="Fast DC">Fast DC Superhub (Rapid)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label" for="filterCharger">Specific Station ID</label>
+          <div class="select-wrapper">
+            <select class="filter-select" id="filterCharger">
+              <option value="">All Stations (2,119)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <div class="filter-group flex-1">
+            <label class="filter-label" for="filterStart">Date From</label>
+            <input type="date" class="filter-select date-input" id="filterStart" />
+          </div>
+          <div class="filter-group flex-1">
+            <label class="filter-label" for="filterEnd">Date To</label>
+            <input type="date" class="filter-select date-input" id="filterEnd" />
+          </div>
+        </div>
+
+        <button class="btn btn--reset" id="resetBtn">
+          <span>↺ Reset All Parameters</span>
+        </button>
+      </div>
+
+      <!-- Navigation Jump Links -->
+      <div class="sidebar__section">
+        <div class="sidebar__heading">
+          <span>🧭 TELEMETRY JUMP</span>
+        </div>
+        <nav class="sidebar__nav">
+          <a class="sidebar__navlink" href="#vehicleStudioSection">
+            <span class="nav-icon">🏎️</span> 3D Vehicle Simulation Studio
+          </a>
+          <a class="sidebar__navlink" href="#vehicleKpiSection">
+            <span class="nav-icon">📊</span> Vehicle KPIs & Timeline
+          </a>
+          <a class="sidebar__navlink" href="#vehicleAnalyticsSection">
+            <span class="nav-icon">🔬</span> Vehicle Analytics (D3)
+          </a>
+          <a class="sidebar__navlink" href="#hub3dSection">
+            <span class="nav-icon">🪐</span> 3D Campus Digital Twin
+          </a>
+          <a class="sidebar__navlink" href="#kpiSection">
+            <span class="nav-icon">⚡</span> Campus KPI Metrics
+          </a>
+          <a class="sidebar__navlink" href="#chartLine">
+            <span class="nav-icon">📈</span> Temporal Demand
+          </a>
+          <a class="sidebar__navlink" href="#chartBarType">
+            <span class="nav-icon">🔌</span> Charger Standard
+          </a>
+          <a class="sidebar__navlink" href="#chartDonut">
+            <span class="nav-icon">🍩</span> AC / DC Distribution
+          </a>
+          <a class="sidebar__navlink" href="#chartScatter">
+            <span class="nav-icon">⚡</span> Duration vs Energy
+          </a>
+          <a class="sidebar__navlink" href="#chartHeatmap">
+            <span class="nav-icon">🔥</span> Day &times; Hour Heatmap
+          </a>
+          <a class="sidebar__navlink" href="#chartTopStations">
+            <span class="nav-icon">🏆</span> Station Rankings
+          </a>
+          <a class="sidebar__navlink" href="#chartStationTable">
+            <span class="nav-icon">📋</span> Station Matrix
+          </a>
+          <a class="sidebar__navlink" href="#insightsPanel">
+            <span class="nav-icon">🔍</span> Analytical Insights
+          </a>
+        </nav>
+      </div>
+      
+      <div class="sidebar__footer">
+        <div class="telemetry-badge">
+          <span class="pulse-ring"></span>
+          <span>ENTERPRISE DIGITAL TWIN &bull; D3 v7 + THREE.JS</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ── MAIN ANALYTICS VIEWPORT ── -->
+    <main class="main-content" id="mainContent">
+
+      <!-- Initial Loading State -->
+      <div class="empty-state glass-panel" id="emptyState">
+        <div class="empty-state__radar">
+          <div class="radar-sweep"></div>
+          <div class="empty-state__icon">⚡</div>
+        </div>
+        <h2 class="cyber-heading">INITIALIZING TELEMETRY STREAM</h2>
+        <p class="empty-state__desc">Synthesizing 72,856 charging sessions across 2,337 vehicles and 2,119 hardware chargers into 3D Digital Twin...</p>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="initProgress"></div>
+        </div>
+        <div class="empty-state__hint">
+          <span>Source: <code>data/ChargingRecords.csv</code> &bull; 1 Year Telemetry Stream (Sep 2021 &ndash; Sep 2022)</span>
+        </div>
+      </div>
+
+      <!-- Dashboard Viewport -->
+      <div class="dashboard-content" id="dashboardContent" style="display:none;">
+
+        <!-- ═══════════════════════════════════════════
+             SECTION: 3D ELECTRIC VEHICLE SIMULATION STUDIO & LIVE-STYLE CHARGING PLAYBACK
+        ════════════════════════════════════════════ -->
+        <section id="vehicleStudioSection" class="vehicle-studio-card glass-panel">
+          <div class="vehicle-studio-header">
+            <div class="vehicle-studio-title-group">
+              <div class="vehicle-studio-badge">
+                <span class="pulse-ring pulse-pink"></span>
+                <span>3D VEHICLE DIGITAL TWIN // LIVE-STYLE CHARGING PLAYBACK</span>
+              </div>
+              <h2 class="vehicle-studio-title">🏎️ 3D Electric Vehicle Simulation Studio</h2>
+              <p class="vehicle-studio-desc">
+                Select any <strong class="text-pink">Vehicle ID</strong> from the dataset to render a high-fidelity 3D electric vehicle, 
+                connect the dynamic charging cable to its illuminated port, and watch simulated charging playback with glowing energy particle streams 
+                and live-updating battery cells calculated from real historical session demand.
+              </p>
+              <div class="simulation-disclaimer">
+                <span class="disclaimer-icon">ℹ️</span>
+                <span>Historical Session Simulation: Visual playback driven by actual recorded energy (kWh) and session dwell duration.</span>
+              </div>
+            </div>
+
+            <!-- Vehicle Simulation Stage Controls -->
+            <div class="vehicle-studio-controls">
+              <!-- Camera Presets -->
+              <div class="btn-group">
+                <button class="hub-btn active" id="vCamIsoBtn" title="Isometric View">Isometric</button>
+                <button class="hub-btn" id="vCamFrontBtn" title="Front View">Front</button>
+                <button class="hub-btn" id="vCamSideBtn" title="Side Port View">Port Side</button>
+                <button class="hub-btn" id="vCamRearBtn" title="Rear View">Rear</button>
+                <button class="hub-btn" id="vCamClosePortBtn" title="Port Close-up">Port Close-up</button>
+              </div>
+              <!-- Paint Color Customizer -->
+              <div class="paint-swatch-group" title="Select Vehicle Paint Color">
+                <button class="paint-swatch active" data-color="#00E5FF" style="background:#00E5FF;" title="Electric Cyan"></button>
+                <button class="paint-swatch" data-color="#39FF88" style="background:#39FF88;" title="Neon Green"></button>
+                <button class="paint-swatch" data-color="#FF9F43" style="background:#FF9F43;" title="Amber Gold"></button>
+                <button class="paint-swatch" data-color="#F472B6" style="background:#F472B6;" title="Neon Pink"></button>
+                <button class="paint-swatch" data-color="#E2E8F0" style="background:#E2E8F0;" title="Pearl White"></button>
+                <button class="paint-swatch" data-color="#0F172A" style="background:#0F172A; border:1px solid #94a3b8;" title="Stealth Obsidian"></button>
+              </div>
+              <button class="hub-btn hub-btn--action" id="vResetCamBtn" title="Reset Camera">
+                <span>🎥 Reset Cam</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Vehicle Session Playback Controls Bar -->
+          <div class="playback-bar">
+            <div class="playback-controls-group">
+              <button class="playback-btn" id="vPrevSessionBtn" title="Previous Session">⏮ Prev</button>
+              <button class="playback-btn playback-btn--primary" id="vPlayPauseBtn" title="Play / Pause Charging Playback">
+                <span id="vPlayIcon">▶</span> <span id="vPlayText">Play Playback</span>
+              </button>
+              <button class="playback-btn" id="vRewindBtn" title="Rewind to Start">↺ Rewind</button>
+              <button class="playback-btn" id="vNextSessionBtn" title="Next Session">Next ⏭</button>
+            </div>
+
+            <!-- Playback Speed Multipliers -->
+            <div class="playback-speed-group">
+              <span class="speed-label">Playback Speed:</span>
+              <button class="speed-btn active" data-speed="1">1x</button>
+              <button class="speed-btn" data-speed="2">2x</button>
+              <button class="speed-btn" data-speed="5">5x</button>
+            </div>
+
+            <!-- Progress Scrubber -->
+            <div class="playback-scrub-wrap">
+              <span class="scrub-label">Session Progress:</span>
+              <div class="scrub-bar-track" id="vScrubTrack">
+                <div class="scrub-bar-fill" id="vScrubFill" style="width: 0%;"></div>
+                <div class="scrub-bar-handle" id="vScrubHandle" style="left: 0%;"></div>
+              </div>
+              <span class="scrub-time" id="vScrubTime">00:00 / 00:00</span>
+            </div>
+
+            <!-- Campus Link Button -->
+            <button class="hub-btn hub-btn--locate" id="vLocateInCampusBtn" title="Locate charger bay in 3D Campus">
+              <span>🎯 Locate in 3D Campus</span>
+            </button>
+          </div>
+
+          <!-- Dual Studio Viewport: 3D Vehicle Stage + 3D Battery & Telemetry HUD -->
+          <div class="vehicle-studio-body">
+            
+            <!-- Left: 3D Vehicle Three.js Canvas -->
+            <div class="vehicle-canvas-wrapper">
+              <div id="vehicleCanvasContainer" class="vehicle-canvas-container">
+                <!-- Three.js Vehicle Viewport Injected Here -->
+              </div>
+
+              <!-- Floating Overlay Badge for Vehicle ID and Status -->
+              <div class="vehicle-stage-badge">
+                <div class="vbadge-top">
+                  <span class="vbadge-id" id="vStageVehicleId">VEHICLE #95</span>
+                  <span class="vbadge-status status-charging" id="vStageStatus">CHARGING IN PROGRESS</span>
+                </div>
+                <div class="vbadge-bottom">
+                  <span id="vStageChargerInfo">Station #13 &bull; Slow AC Hub</span>
+                </div>
+              </div>
+
+              <!-- Camera instruction strip -->
+              <div class="vstage-instructions">
+                <span>🖱️ Left-Click: Rotate Car</span> &bull; 
+                <span>Scroll: Zoom</span> &bull; 
+                <span>Right-Click: Pan</span>
+              </div>
+            </div>
+
+            <!-- Right: Interactive 3D Battery & Session Telemetry HUD -->
+            <div class="vehicle-telemetry-panel glass-panel-subtle">
+              <div class="vtelemetry-header">
+                <span class="vtelemetry-title">SESSION TELEMETRY &amp; BATTERY HUD</span>
+                <span class="vtelemetry-session-tag" id="vSessionBadge">SESSION 1 OF 348</span>
+              </div>
+
+              <!-- 3D Battery Pack Interactive Graphic -->
+              <div class="battery-module-wrap">
+                <div class="battery-casing">
+                  <div class="battery-terminal battery-terminal--pos"></div>
+                  <div class="battery-cells-container" id="batteryCellsContainer">
+                    <div class="battery-cell" data-cell="1"></div>
+                    <div class="battery-cell" data-cell="2"></div>
+                    <div class="battery-cell" data-cell="3"></div>
+                    <div class="battery-cell" data-cell="4"></div>
+                    <div class="battery-cell" data-cell="5"></div>
+                    <div class="battery-cell" data-cell="6"></div>
+                    <div class="battery-cell" data-cell="7"></div>
+                    <div class="battery-cell" data-cell="8"></div>
+                    <div class="battery-cell" data-cell="9"></div>
+                    <div class="battery-cell" data-cell="10"></div>
+                  </div>
+                  <div class="battery-terminal battery-terminal--neg"></div>
+                </div>
+
+                <div class="battery-metric-readout">
+                  <div class="bat-metric-main">
+                    <span class="bat-pct-label">PLAYBACK PROGRESS</span>
+                    <div class="bat-pct-value text-cyan" id="batProgressPct">0%</div>
+                  </div>
+                  <div class="bat-sub-metrics">
+                    <div class="bat-sub-item">
+                      <span class="bat-sub-label">ENERGY DELIVERED</span>
+                      <strong class="bat-sub-val text-green" id="batEnergyDelivered">0.00 kWh</strong>
+                    </div>
+                    <div class="bat-sub-item">
+                      <span class="bat-sub-label">AVG CALCULATED POWER</span>
+                      <strong class="bat-sub-val text-amber" id="batAvgPower">0.0 kW</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Detailed Session Attributes Matrix -->
+              <div class="vsession-matrix">
+                <div class="vmatrix-row">
+                  <span class="vmatrix-label">Vehicle Identifier:</span>
+                  <strong class="vmatrix-val text-pink" id="vMatVehicleId">#95</strong>
+                </div>
+                <div class="vmatrix-row">
+                  <span class="vmatrix-label">Hardware Charger ID:</span>
+                  <strong class="vmatrix-val text-cyan" id="vMatChargerId">Station #13</strong>
+                </div>
+                <div class="vmatrix-row">
+                  <span class="vmatrix-label">Charging Standard:</span>
+                  <strong class="vmatrix-val" id="vMatChargerType"><span class="type-pill-ac">Slow AC</span></strong>
+                </div>
+                <div class="vmatrix-row">
+                  <span class="vmatrix-label">Location Category:</span>
+                  <strong class="vmatrix-val text-white" id="vMatLocation">apartment</strong>
+                </div>
+                <div class="vmatrix-row">
+                  <span class="vmatrix-label">Session Date:</span>
+                  <strong class="vmatrix-val text-white" id="vMatDate">23 Sep 2022</strong>
+                </div>
+                <div class="vmatrix-row">
+                  <span class="vmatrix-label">Time Window:</span>
+                  <strong class="vmatrix-val text-white" id="vMatTimeWindow">20:19 &rarr; 21:44</strong>
+                </div>
+                <div class="vmatrix-row">
+                  <span class="vmatrix-label">Dwell Duration:</span>
+                  <strong class="vmatrix-val text-violet" id="vMatDuration">85.0 min</strong>
+                </div>
+                <div class="vmatrix-row">
+                  <span class="vmatrix-label">Total Energy Demand:</span>
+                  <strong class="vmatrix-val text-green" id="vMatEnergy">4.60 kWh</strong>
+                </div>
+                <div class="vmatrix-row">
+                  <span class="vmatrix-label">Calculated Avg Power:</span>
+                  <strong class="vmatrix-val text-amber" id="vMatPower" title="Calculated as: Demand (kWh) / (Duration (min) / 60)">3.25 kW</strong>
+                </div>
+              </div>
+
+              <!-- Filter Dashboard to this Vehicle Button -->
+              <div class="vtelemetry-actions">
+                <button class="btn btn--cyber" id="filterByThisVehicleBtn">
+                  <span>⚡ Filter Entire Dashboard to Vehicle #<span id="vBtnIdText">95</span></span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════
+             SECTION: VEHICLE-SPECIFIC 3D KPI CARDS (7 CARDS)
+        ════════════════════════════════════════════ -->
+        <section id="vehicleKpiSection" class="kpi-grid">
+          
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">RECORDED SESSIONS</span>
+              <div class="kpi-card__icon-box icon-pink">🚗</div>
+            </div>
+            <div class="kpi-card__value text-pink" id="vKpiSessions">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-pink" id="vKpiSessionsSub">Vehicle Lifetime</span>
+              <span class="kpi-card__sub">Session count</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">TOTAL ENERGY DELIVERED</span>
+              <div class="kpi-card__icon-box icon-green">⚡</div>
+            </div>
+            <div class="kpi-card__value text-green" id="vKpiEnergy">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-green">Cumulative Demand</span>
+              <span class="kpi-card__sub">kWh delivered</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">AVG CHARGING TIME</span>
+              <div class="kpi-card__icon-box icon-amber">⏱️</div>
+            </div>
+            <div class="kpi-card__value text-amber" id="vKpiAvgDur">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-amber">Valid Sessions</span>
+              <span class="kpi-card__sub">minutes / session</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">AVG CALCULATED POWER</span>
+              <div class="kpi-card__icon-box icon-cyan">🔌</div>
+            </div>
+            <div class="kpi-card__value text-cyan" id="vKpiAvgPower">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-cyan">Kilowatts</span>
+              <span class="kpi-card__sub">Energy / Duration</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">PRIMARY CHARGER TYPE</span>
+              <div class="kpi-card__icon-box icon-green">⚡</div>
+            </div>
+            <div class="kpi-card__value text-green" id="vKpiPrimaryType">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-green" id="vKpiPrimaryTypeSub">Dominant Mode</span>
+              <span class="kpi-card__sub">Hardware standard</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">DISTINCT STATIONS</span>
+              <div class="kpi-card__icon-box icon-violet">📍</div>
+            </div>
+            <div class="kpi-card__value text-violet" id="vKpiStationsCount">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-violet">Campus Coverage</span>
+              <span class="kpi-card__sub">Locations visited</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">LATEST SESSION DATE</span>
+              <div class="kpi-card__icon-box icon-pink">📅</div>
+            </div>
+            <div class="kpi-card__value text-pink" id="vKpiLatestSession">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-pink" id="vKpiLatestSessionSub">Most recent</span>
+              <span class="kpi-card__sub">Session timestamp</span>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ═══════════════════════════════════════════
+             SECTION: VEHICLE CHARGING SESSION TIMELINE & CAROUSEL
+        ════════════════════════════════════════════ -->
+        <section id="vehicleTimelineSection" class="chart-card chart-card--wide glass-panel">
+          <div class="chart-card__header">
+            <div class="chart-card__title-group">
+              <span class="chart-badge">SESSION HISTORY</span>
+              <h2 class="chart-card__title">📅 Vehicle Charging Session Interactive Timeline</h2>
+            </div>
+            <div class="timeline-controls">
+              <span class="timeline-count" id="timelineSessionCount">Showing 348 Sessions</span>
+              <div class="btn-group">
+                <button class="hub-btn" id="timelinePrevBtn">⏮ Previous</button>
+                <button class="hub-btn" id="timelineNextBtn">Next ⏭</button>
+              </div>
+            </div>
+          </div>
+          <div class="timeline-track-wrapper custom-scrollbar">
+            <div class="timeline-track" id="vehicleTimelineTrack">
+              <!-- Interactive Session Cards Injected Dynamically -->
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════
+             SECTION: VEHICLE ANALYTICS (D3 CHARTS)
+        ════════════════════════════════════════════ -->
+        <section id="vehicleAnalyticsSection" class="chart-grid">
+          
+          <!-- Vehicle Chart 1: Energy Delivered per Session -->
+          <section class="chart-card glass-panel" id="vChartEnergy">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">DEMAND PROFILE</span>
+                <h2 class="chart-card__title">⚡ Energy Delivered per Session (kWh)</h2>
+              </div>
+            </div>
+            <div class="chart-card__body" id="vChartEnergyContainer"></div>
+          </section>
+
+          <!-- Vehicle Chart 2: Charging Duration vs Average Calculated Power -->
+          <section class="chart-card glass-panel" id="vChartDurationPower">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">SPEED &bull; POWER</span>
+                <h2 class="chart-card__title">⏱️ Duration vs Calculated Power (kW)</h2>
+              </div>
+            </div>
+            <div class="chart-card__body" id="vChartDurationPowerContainer"></div>
+          </section>
+
+          <!-- Vehicle Chart 3: Fast DC vs Slow AC Share for this Vehicle -->
+          <section class="chart-card glass-panel" id="vChartStandard">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">STANDARD SPLIT</span>
+                <h2 class="chart-card__title">🍩 Fast DC vs Slow AC Share</h2>
+              </div>
+            </div>
+            <div class="chart-card__body" id="vChartStandardContainer"></div>
+          </section>
+
+          <!-- Vehicle Chart 4: Location Category Usage -->
+          <section class="chart-card glass-panel" id="vChartLocation">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">VENUES</span>
+                <h2 class="chart-card__title">📍 Locations Visited by Vehicle</h2>
+              </div>
+            </div>
+            <div class="chart-card__body" id="vChartLocationContainer"></div>
+          </section>
+
+        </section>
+
+        <!-- ═══════════════════════════════════════════
+             SECTION 1: 3D INTERACTIVE EV CHARGING CAMPUS
+        ════════════════════════════════════════════ -->
+        <section id="hub3dSection" class="hub3d-card glass-panel">
+          <div class="hub3d-header">
+            <div class="hub3d-title-group">
+              <div class="hub3d-badge">
+                <span class="glow-dot"></span>
+                <span>WEBGL 3D CAMPUS TWIN &bull; DUAL-HUB ARCHITECTURE</span>
+              </div>
+              <h2 class="hub3d-title">⚡ Interactive EV Charging Campus // 3D Digital Twin</h2>
+              <p class="hub3d-desc">
+                Expansive interactive 3D digital twin featuring separate 
+                <strong class="text-green">Slow AC Plaza (West Wing)</strong> and 
+                <strong class="text-amber">Fast DC Superhub (East Wing)</strong> with parking stalls, floor markings, 
+                overhead solar canopies, and transit corridors. Click any station pillar to inspect live telemetry and filter the dashboard.
+              </p>
+            </div>
+
+            <!-- 3D Scene Camera View Controls -->
+            <div class="hub3d-controls">
+              <div class="btn-group">
+                <button class="hub-btn active" id="viewHubBtn" title="Full Campus Overview">Campus Overview</button>
+                <button class="hub-btn hub-btn--ac" id="viewAcHubBtn" title="Focus Slow AC Plaza">🔌 Slow AC Hub</button>
+                <button class="hub-btn hub-btn--dc" id="viewDcHubBtn" title="Focus Fast DC Superhub">⚡ Fast DC Hub</button>
+                <button class="hub-btn" id="viewStationFocusBtn" title="Focus Selected Station">Station Focus</button>
+                <button class="hub-btn" id="viewOverheadBtn" title="Top-down Aerial View">Aerial Map</button>
+              </div>
+              <button class="hub-btn hub-btn--action" id="resetCameraBtn" title="Reset Camera">
+                <span>🎥 Reset</span>
+              </button>
+              <button class="hub-btn hub-btn--glow" id="toggleAutoRotateBtn" title="Toggle Cinematic Orbit">
+                <span>🔄 Auto-Orbit</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Dual-Hub Quick Metrics Banner -->
+          <div class="campus-stats-bar">
+            <div class="campus-stat-item">
+              <span class="stat-bullet bullet-cyan"></span>
+              <span class="stat-name">TOTAL CHARGING INFRASTRUCTURE:</span>
+              <strong class="stat-number text-cyan" id="campusTotalChargers">2,119 CHARGERS</strong>
+            </div>
+            <div class="campus-stat-separator">|</div>
+            <div class="campus-stat-item">
+              <span class="stat-bullet bullet-green"></span>
+              <span class="stat-name">SLOW AC HUB (WEST WING):</span>
+              <strong class="stat-number text-green" id="campusAcChargers">1,129 STATIONS</strong>
+              <span class="stat-desc">(Level 2 &bull; 22kW)</span>
+            </div>
+            <div class="campus-stat-separator">|</div>
+            <div class="campus-stat-item">
+              <span class="stat-bullet bullet-amber"></span>
+              <span class="stat-name">FAST DC SUPERHUB (EAST WING):</span>
+              <strong class="stat-number text-amber" id="campusDcChargers">990 STATIONS</strong>
+              <span class="stat-desc">(DC Rapid &bull; 150&ndash;350kW)</span>
+            </div>
+          </div>
+
+          <!-- 3D Canvas Stage & Interactive Overlays -->
+          <div class="hub3d-stage-wrapper">
+            <div id="threeCanvasContainer" class="three-canvas-container">
+              <!-- Three.js Canvas Injected Here -->
+            </div>
+
+            <!-- 3D Scene HUD Overlay -->
+            <div class="hub3d-hud-overlay">
+              <div class="hub3d-legend glass-panel-subtle">
+                <div class="legend-title">CAMPUS ZONE CODING</div>
+                <div class="legend-row">
+                  <span class="legend-swatch legend-swatch--ac"></span>
+                  <span><strong>Slow AC Hub</strong> (Electric Green #39FF88)</span>
+                </div>
+                <div class="legend-row">
+                  <span class="legend-swatch legend-swatch--dc"></span>
+                  <span><strong>Fast DC Hub</strong> (Amber Orange #FF9F43)</span>
+                </div>
+                <div class="legend-row">
+                  <span class="legend-swatch legend-swatch--active"></span>
+                  <span><strong>Active High Demand</strong> (>30 kWh Session)</span>
+                </div>
+              </div>
+
+              <!-- Selected Station Hologram Card -->
+              <div class="station-hologram glass-panel" id="stationHologram" style="display:none;">
+                <div class="hologram-header">
+                  <div class="hologram-title-wrap">
+                    <span class="hologram-tag">SELECTED CHARGING PILLAR</span>
+                    <h3 class="hologram-station-id" id="holoStationId">STATION #—</h3>
+                  </div>
+                  <button class="hologram-close" id="holoCloseBtn" title="Clear Selection">&times;</button>
+                </div>
+                <div class="hologram-body">
+                  <div class="holo-stat-grid">
+                    <div class="holo-stat">
+                      <span class="holo-label">Hub Zone / Type</span>
+                      <strong class="holo-val text-green" id="holoType">—</strong>
+                    </div>
+                    <div class="holo-stat">
+                      <span class="holo-label">Location Type</span>
+                      <strong class="holo-val text-white" id="holoLocation">—</strong>
+                    </div>
+                    <div class="holo-stat">
+                      <span class="holo-label">Network Operator</span>
+                      <strong class="holo-val text-white" id="holoCompany">—</strong>
+                    </div>
+                    <div class="holo-stat">
+                      <span class="holo-label">Total Sessions</span>
+                      <strong class="holo-val text-cyan" id="holoSessions">—</strong>
+                    </div>
+                    <div class="holo-stat">
+                      <span class="holo-label">Energy Delivered</span>
+                      <strong class="holo-val text-amber" id="holoEnergy">— kWh</strong>
+                    </div>
+                    <div class="holo-stat">
+                      <span class="holo-label">Avg Dwell Time</span>
+                      <strong class="holo-val text-violet" id="holoAvgDur">— min</strong>
+                    </div>
+                  </div>
+                </div>
+                <div class="hologram-footer">
+                  <button class="btn btn--cyber-small" id="holoFilterBtn">
+                    <span>⚡ Filter Entire Dashboard to this Station</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 3D Hover Tooltip -->
+              <div class="hub3d-hover-tag" id="hub3dHoverTag" style="display:none;">
+                <span class="hover-tag-name" id="hub3dHoverName">Station</span>
+                <span class="hover-tag-info" id="hub3dHoverInfo">—</span>
+              </div>
+            </div>
+
+            <!-- Instruction Strip -->
+            <div class="hub3d-instruction-bar">
+              <span class="instr-key">🖱️ Left Click + Drag</span> Rotate
+              <span class="instr-divider">&bull;</span>
+              <span class="instr-key">Scroll Wheel</span> Zoom
+              <span class="instr-divider">&bull;</span>
+              <span class="instr-key">Right Click + Drag</span> Pan
+              <span class="instr-divider">&bull;</span>
+              <span class="instr-key">Click Station Pillar</span> Telemetry Inspection & Filter
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════
+             SECTION: CAMPUS-LEVEL 3D PERSPECTIVE KPI CARDS
+        ════════════════════════════════════════════ -->
+        <section id="kpiSection" class="kpi-grid">
+          
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">TOTAL CAMPUS STATIONS</span>
+              <div class="kpi-card__icon-box icon-cyan">🔌</div>
+            </div>
+            <div class="kpi-card__value text-cyan" id="kpiStations">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-cyan">⚡ 2,119 deployed</span>
+              <span class="kpi-card__sub">Distinct chargers</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">TOTAL CAMPUS SESSIONS</span>
+              <div class="kpi-card__icon-box icon-violet">📋</div>
+            </div>
+            <div class="kpi-card__value text-violet" id="kpiSessions">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-violet">⚡ 100% indexed</span>
+              <span class="kpi-card__sub">Session records</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">TOTAL ENERGY DELIVERED</span>
+              <div class="kpi-card__icon-box icon-green">⚡</div>
+            </div>
+            <div class="kpi-card__value text-green" id="kpiEnergy">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-green">Megawatt Hours</span>
+              <span class="kpi-card__sub">kWh cumulative</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">CAMPUS AVG CHARGING TIME</span>
+              <div class="kpi-card__icon-box icon-amber">⏱️</div>
+            </div>
+            <div class="kpi-card__value text-amber" id="kpiAvgDur">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-amber">Valid Sessions</span>
+              <span class="kpi-card__sub">minutes / session</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">MOST USED CHARGER</span>
+              <div class="kpi-card__icon-box icon-pink">🏆</div>
+            </div>
+            <div class="kpi-card__value text-pink" id="kpiMostUsedCharger">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-pink" id="kpiMostUsedCount">sessions</span>
+              <span class="kpi-card__sub">Highest frequency</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">ACTIVE STATIONS</span>
+              <div class="kpi-card__icon-box icon-green">🟢</div>
+            </div>
+            <div class="kpi-card__value text-green" id="kpiActive">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-green">In filter scope</span>
+              <span class="kpi-card__sub">Operational units</span>
+            </div>
+          </div>
+
+          <div class="kpi-card glass-panel tilt-card" data-tilt>
+            <div class="tilt-glare"></div>
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">PEAK CHARGING DAY</span>
+              <div class="kpi-card__icon-box icon-violet">📅</div>
+            </div>
+            <div class="kpi-card__value text-violet" id="kpiPeakDay">—</div>
+            <div class="kpi-card__footer">
+              <span class="kpi-trend text-violet" id="kpiPeakDayCount">sessions</span>
+              <span class="kpi-card__sub">Max grid throughput</span>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ═══════════════════════════════════════════
+             SECTION: CAMPUS-LEVEL D3.JS CHARTS
+        ════════════════════════════════════════════ -->
+        <div class="chart-grid">
+
+          <!-- Chart 1: Line Chart (Temporal Usage) -->
+          <section class="chart-card chart-card--wide glass-panel" id="chartLine">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">TIME SERIES</span>
+                <h2 class="chart-card__title">📈 Charging Demand & Usage Over Time</h2>
+              </div>
+              <div class="chart-controls">
+                <label class="chart-ctrl-label" for="lineAggSelect">Granularity:</label>
+                <div class="select-wrapper">
+                  <select class="chart-ctrl-select" id="lineAggSelect">
+                    <option value="day">Day View</option>
+                    <option value="month" selected>Month View</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="chart-card__body" id="lineChartContainer"></div>
+          </section>
+
+          <!-- Chart 2: Bar Chart (Charger Type) -->
+          <section class="chart-card glass-panel" id="chartBarType">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">HARDWARE</span>
+                <h2 class="chart-card__title">📊 Usage by Charger Type (Slow AC vs Fast DC)</h2>
+              </div>
+            </div>
+            <div class="chart-card__body" id="barTypeContainer"></div>
+          </section>
+
+          <!-- Chart 3: Donut Chart (AC vs DC Distribution) -->
+          <section class="chart-card glass-panel" id="chartDonut">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">SHARE</span>
+                <h2 class="chart-card__title">🍩 AC vs DC Session & Energy Share</h2>
+              </div>
+            </div>
+            <div class="chart-card__body" id="donutContainer"></div>
+          </section>
+
+          <!-- Chart 4: Scatter Plot (Duration vs Energy Demand) -->
+          <section class="chart-card chart-card--wide glass-panel" id="chartScatter">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">CORRELATION</span>
+                <h2 class="chart-card__title">⚡ Charging Duration vs Energy Demand</h2>
+              </div>
+              <div class="chart-controls">
+                <label class="chart-ctrl-label" for="scatterSampleSelect">Sample Size:</label>
+                <div class="select-wrapper">
+                  <select class="chart-ctrl-select" id="scatterSampleSelect">
+                    <option value="2000">2,000</option>
+                    <option value="5000" selected>5,000</option>
+                    <option value="10000">10,000</option>
+                    <option value="all">All (72k)</option>
+                  </select>
+                </div>
+                <label class="cyber-checkbox-label">
+                  <input type="checkbox" id="trendlineCheck" checked />
+                  <span class="custom-checkbox"></span>
+                  <span>Regression Line</span>
+                </label>
+              </div>
+            </div>
+            <div class="chart-card__body" id="scatterContainer"></div>
+          </section>
+
+          <!-- Chart 5: Heatmap (Day × Hour) -->
+          <section class="chart-card chart-card--wide glass-panel" id="chartHeatmap">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">HEAT INTENSITY</span>
+                <h2 class="chart-card__title">🔥 Charging Activity Intensity Matrix (Day &times; Hour)</h2>
+              </div>
+            </div>
+            <div class="chart-card__body" id="heatmapContainer"></div>
+          </section>
+
+          <!-- Chart 6: Top 20 Stations Ranking -->
+          <section class="chart-card chart-card--wide glass-panel" id="chartTopStations">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">LEADERBOARD</span>
+                <h2 class="chart-card__title">🏆 Top 20 Stations Usage Ranking</h2>
+              </div>
+            </div>
+            <div class="chart-card__body" id="topStationsContainer"></div>
+          </section>
+
+          <!-- Chart 7: Station Activity Table -->
+          <section class="chart-card chart-card--wide glass-panel" id="chartStationTable">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">CATALOG MATRIX</span>
+                <h2 class="chart-card__title">📋 Station Activity Matrix & Telemetry Details</h2>
+              </div>
+              <div class="table-search-wrap">
+                <input type="text" class="table-search-input" id="tableSearchInput" placeholder="🔍 Search Station ID, Location, Type..." />
+              </div>
+            </div>
+            <div class="chart-card__body">
+              <div class="table-wrap custom-scrollbar">
+                <table class="station-table" id="stationTable">
+                  <thead>
+                    <tr>
+                      <th>Charger ID</th>
+                      <th>Company</th>
+                      <th>Location</th>
+                      <th>Type / Standard</th>
+                      <th>Sessions</th>
+                      <th>Avg Time</th>
+                      <th>Total Energy</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- Chart 8: Usage by Location Category -->
+          <section class="chart-card chart-card--wide glass-panel" id="chartLocation">
+            <div class="chart-card__header">
+              <div class="chart-card__title-group">
+                <span class="chart-badge">VENUE CATEGORY</span>
+                <h2 class="chart-card__title">📍 Session Distribution by Location Category</h2>
+              </div>
+            </div>
+            <div class="chart-card__body" id="locationContainer"></div>
+          </section>
+
+        </div><!-- .chart-grid -->
+
+        <!-- ═══════════════════════════════════════════
+             SECTION: ANALYTICAL INSIGHTS PANEL
+        ════════════════════════════════════════════ -->
+        <section class="insights-panel glass-panel" id="insightsPanel">
+          <div class="insights-header">
+            <div class="insights-badge">
+              <span class="pulse-ring"></span>
+              <span>SYNTHESIZED HEURISTICS</span>
+            </div>
+            <h2 class="insights-panel__title">🔍 Automated Analytical Insights & Grid Intelligence</h2>
+          </div>
+          <div class="insights-grid" id="insightsGrid"></div>
+        </section>
+
+      </div><!-- #dashboardContent -->
+
+    </main><!-- .main-content -->
+  </div><!-- .layout -->
+
+  <!-- ── GLOBAL FUTURISTIC TOOLTIP ── -->
+  <div class="tooltip cyber-tooltip" id="globalTooltip" role="tooltip" aria-hidden="true"></div>
+
+  <!-- Main Application Script -->
+  <script src="script.js"></script>
+</body>
+</html>
